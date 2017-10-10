@@ -6,6 +6,7 @@ package main
 
 import (
 	"bufio"
+	"encoding/base64"
 	"fmt"
 	"go/token"
 	"os"
@@ -20,6 +21,16 @@ import (
 	"github.com/cznic/virtual"
 	"github.com/cznic/xc"
 )
+
+func winshebang(fn string) bool {
+	if runtime.GOOS == "windows" {
+		ext := filepath.Ext(fn)
+		if ext == ".bat" || ext == ".cmd" {
+			return true
+		}
+	}
+	return false
+}
 
 func exit(code int, msg string, arg ...interface{}) {
 	if msg != "" {
@@ -459,8 +470,16 @@ func (t *task) main() error {
 			f.WriteString("#!/usr/bin/env 99run\n")
 		}
 
-		if _, err := bin.WriteTo(f); err != nil {
-			return err
+		if winshebang(fn) {
+			f.WriteString("@99run %0 %*\n@exit /b %ERRORLEVEL%\n")
+			w := base64.NewEncoder(base64.StdEncoding, f)
+			if _, err := bin.WriteTo(w); err != nil {
+				return err
+			}
+		} else {
+			if _, err := bin.WriteTo(f); err != nil {
+				return err
+			}
 		}
 
 		if err := f.Close(); err != nil {
